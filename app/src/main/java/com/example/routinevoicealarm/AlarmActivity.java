@@ -4,8 +4,7 @@ import android.app.Activity;
 import android.app.NotificationManager;
 import android.content.Context;
 import android.media.AudioAttributes;
-import android.media.AudioManager;
-import android.media.Ringtone;
+import android.media.MediaPlayer;
 import android.media.RingtoneManager;
 import android.os.Build;
 import android.os.Bundle;
@@ -22,20 +21,24 @@ import java.util.Locale;
 
 public class AlarmActivity extends Activity {
 
-    private Ringtone ringtone;
+    private MediaPlayer mediaPlayer;
     private TextToSpeech tts;
     private AlarmItem item;
 
-    private final Handler speechHandler =
+    private final Handler handler =
             new Handler(Looper.getMainLooper());
 
     private boolean stopped = false;
 
+    private int cycleCount = 0;
+
+    private static final int MAX_CYCLES = 3;
+
+    private static final long NEXT_CYCLE_DELAY = 1000L;
+
     private int speechCount = 0;
 
-    private static final int MAX_SPEECH_COUNT = 3;
-
-    private static final long REPEAT_DELAY = 5000L;
+    private static final long SPEECH_REPEAT_DELAY = 1500L;
 
     @Override
     public void onCreate(Bundle b) {
@@ -96,7 +99,9 @@ public class AlarmActivity extends Activity {
         } else {
 
             spoken =
-                    item.message.trim();
+                    cleanSpeechText(
+                            item.message
+                    );
         }
 
         msg.setText(spoken);
@@ -111,12 +116,52 @@ public class AlarmActivity extends Activity {
                         v -> snooze()
                 );
 
-        startRingtone();
-
-        startSpeech(spoken);
+        startAlarmCycle(spoken);
     }
 
-    private void startRingtone() {
+    private String cleanSpeechText(String text) {
+
+        if (text == null) {
+            return "";
+        }
+
+        String cleaned =
+                text
+                        .replace('\n', ' ')
+                        .replace('\r', ' ')
+                        .replace('\t', ' ');
+
+        cleaned =
+                cleaned.replaceAll(
+                        "\\s+",
+                        " "
+                );
+
+        return cleaned.trim();
+    }
+
+    private void startAlarmCycle(String text) {
+
+        if (stopped) {
+            return;
+        }
+
+        if (cycleCount >= MAX_CYCLES) {
+            return;
+        }
+
+        cycleCount++;
+
+        startRingtoneOnce();
+
+        /*
+         * Say the user's message once for
+         * each alarm cycle.
+         */
+        startSpeechOnce(text);
+    }
+
+    private void startRingtoneOnce() {
 
         try {
 
@@ -126,45 +171,102 @@ public class AlarmActivity extends Activity {
                     );
 
             if (uri == null) {
-
                 uri =
                         RingtoneManager.getDefaultUri(
                                 RingtoneManager.TYPE_NOTIFICATION
                         );
             }
 
-            ringtone =
-                    RingtoneManager.getRingtone(
+            mediaPlayer =
+                    MediaPlayer.create(
                             this,
                             uri
                     );
 
-            if (ringtone != null) {
-
-                if (Build.VERSION.SDK_INT >= 21) {
-
-                    ringtone.setAudioAttributes(
-                            new AudioAttributes.Builder()
-                                    .setUsage(
-                                            AudioAttributes.USAGE_ALARM
-                                    )
-                                    .setContentType(
-                                            AudioAttributes.CONTENT_TYPE_SONIFICATION
-                                    )
-                                    .build()
-                    );
-                }
-
-                ringtone.play();
+            if (mediaPlayer == null) {
+                return;
             }
+
+            if (Build.VERSION.SDK_INT >= 21) {
+
+                mediaPlayer.setAudioAttributes(
+                        new AudioAttributes.Builder()
+                                .setUsage(
+                                        AudioAttributes.USAGE_ALARM
+                                )
+                                .setContentType(
+                                        AudioAttributes.CONTENT_TYPE_SONIFICATION
+                                )
+                                .build()
+                );
+            }
+
+            mediaPlayer.setLooping(false);
+
+            mediaPlayer.setOnCompletionListener(
+                    mp -> {
+
+                        if (stopped) {
+                            return;
+                        }
+
+                        if (cycleCount < MAX_CYCLES) {
+
+                            handler.postDelayed(
+                                    () -> {
+
+                                        if (!stopped) {
+                                            startAlarmCycle(
+                                                    getSpokenText()
+                                            );
+                                        }
+
+                                    },
+                                    NEXT_CYCLE_DELAY
+                            );
+                        }
+                    }
+            );
+
+            mediaPlayer.start();
 
         } catch (Exception ignored) {
         }
     }
 
-    private void startSpeech(String text) {
+    private String getSpokenText() {
+
+        if (item == null) {
+            return "";
+        }
+
+        if (item.message == null ||
+                item.message.trim().isEmpty()) {
+
+            return item.name +
+                    " করার সময় হয়ে গেছে।";
+        }
+
+        return cleanSpeechText(
+                item.message
+        );
+    }
+
+    private void startSpeechOnce(String text) {
+
+        if (stopped) {
+            return;
+        }
 
         speechCount = 0;
+
+        if (tts != null) {
+            try {
+                tts.stop();
+                tts.shutdown();
+            } catch (Exception ignored) {
+            }
+        }
 
         tts =
                 new TextToSpeech(
@@ -176,9 +278,6 @@ public class AlarmActivity extends Activity {
                                 return;
                             }
 
-                            /*
-                             * Make TTS use ALARM audio.
-                             */
                             if (Build.VERSION.SDK_INT >= 21) {
 
                                 tts.setAudioAttributes(
@@ -193,9 +292,6 @@ public class AlarmActivity extends Activity {
                                 );
                             }
 
-                            /*
-                             * Bengali voice.
-                             */
                             Locale bengali =
                                     new Locale(
                                             "bn",
@@ -220,10 +316,10 @@ public class AlarmActivity extends Activity {
 
                             /*
                              * Normal speaking speed.
-                             * Not too slow.
+                             * No artificial slow speech.
                              */
                             tts.setSpeechRate(
-                                    0.90f
+                                    1.0f
                             );
 
                             tts.setPitch(
@@ -241,28 +337,6 @@ public class AlarmActivity extends Activity {
                                         @Override
                                         public void onDone(
                                                 String id) {
-
-                                            if (stopped) {
-                                                return;
-                                            }
-
-                                            if (speechCount <
-                                                    MAX_SPEECH_COUNT) {
-
-                                                speechHandler
-                                                        .postDelayed(
-                                                                () -> {
-
-                                                                    if (!stopped) {
-                                                                        speakText(
-                                                                                text
-                                                                        );
-                                                                    }
-
-                                                                },
-                                                                REPEAT_DELAY
-                                                        );
-                                            }
                                         }
 
                                         @Override
@@ -272,35 +346,19 @@ public class AlarmActivity extends Activity {
                                     }
                             );
 
-                            speakText(text);
+                            /*
+                             * Entire sentence is sent
+                             * as ONE utterance.
+                             */
+                            tts.speak(
+                                    text,
+                                    TextToSpeech.QUEUE_FLUSH,
+                                    null,
+                                    "alarm_speech_" +
+                                            cycleCount
+                            );
                         }
                 );
-    }
-
-    private void speakText(String text) {
-
-        if (stopped ||
-                tts == null) {
-            return;
-        }
-
-        if (speechCount >=
-                MAX_SPEECH_COUNT) {
-            return;
-        }
-
-        speechCount++;
-
-        /*
-         * Speak the user's message.
-         */
-        tts.speak(
-                text,
-                TextToSpeech.QUEUE_FLUSH,
-                null,
-                "routine_voice_alarm_" +
-                        speechCount
-        );
     }
 
     private void snooze() {
@@ -322,17 +380,25 @@ public class AlarmActivity extends Activity {
 
         stopped = true;
 
-        speechHandler
-                .removeCallbacksAndMessages(
-                        null
-                );
+        handler.removeCallbacksAndMessages(
+                null
+        );
 
-        if (ringtone != null) {
+        if (mediaPlayer != null) {
 
             try {
-                ringtone.stop();
+                if (mediaPlayer.isPlaying()) {
+                    mediaPlayer.stop();
+                }
             } catch (Exception ignored) {
             }
+
+            try {
+                mediaPlayer.release();
+            } catch (Exception ignored) {
+            }
+
+            mediaPlayer = null;
         }
 
         if (tts != null) {
@@ -342,6 +408,8 @@ public class AlarmActivity extends Activity {
                 tts.shutdown();
             } catch (Exception ignored) {
             }
+
+            tts = null;
         }
 
         NotificationManager nm =
@@ -369,17 +437,23 @@ public class AlarmActivity extends Activity {
 
         stopped = true;
 
-        speechHandler
-                .removeCallbacksAndMessages(
-                        null
-                );
+        handler.removeCallbacksAndMessages(
+                null
+        );
 
-        if (ringtone != null) {
+        if (mediaPlayer != null) {
 
             try {
-                ringtone.stop();
+                mediaPlayer.stop();
             } catch (Exception ignored) {
             }
+
+            try {
+                mediaPlayer.release();
+            } catch (Exception ignored) {
+            }
+
+            mediaPlayer = null;
         }
 
         if (tts != null) {
@@ -389,8 +463,10 @@ public class AlarmActivity extends Activity {
                 tts.shutdown();
             } catch (Exception ignored) {
             }
+
+            tts = null;
         }
 
         super.onDestroy();
     }
-        }
+                    }
