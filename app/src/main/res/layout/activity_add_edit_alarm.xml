@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:background="@color/background"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <LinearLayout
+        android:orientation="vertical"
+        android:padding="20dp"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+
+        <TextView
+            android:id="@+id/screenTitle"
+            android:text="Add Routine Alarm"
+            android:textSize="27sp"
+            android:textStyle="bold"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"/>
+
+        <TimePicker
+            android:id="@+id/timePicker"
+            android:layout_marginTop="12dp"
+            android:timePickerMode="clock"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"/>
+
+        <EditText
+            android:id="@+id/nameInput"
+            android:hint="Routine name, e.g. Reading Test"
+            android:inputType="textCapSentences"
+            android:layout_marginTop="12dp"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"/>
+
+        <EditText
+            android:id="@+id/messageInput"
+            android:hint="What should the app say? (optional)"
+            android:inputType="textCapSentences|textMultiLine"
+            android:minLines="2"
+            android:layout_marginTop="8dp"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"/>
+
+        <TextView
+            android:text="Select days"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            android:layout_marginTop="16dp"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"/>
+
+        <LinearLayout
+            android:orientation="vertical"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+
+            <CheckBox android:id="@+id/daySat" android:text="Saturday" android:layout_width="match_parent" android:layout_height="wrap_content"/>
+            <CheckBox android:id="@+id/daySun" android:text="Sunday" android:layout_width="match_parent" android:layout_height="wrap_content"/>
+            <CheckBox android:id="@+id/dayMon" android:text="Monday" android:layout_width="match_parent" android:layout_height="wrap_content"/>
+            <CheckBox android:id="@+id/dayTue" android:text="Tuesday" android:layout_width="match_parent" android:layout_height="wrap_content"/>
+            <CheckBox android:id="@+id/dayWed" android:text="Wednesday" android:layout_width="match_parent" android:layout_height="wrap_content"/>
+            <CheckBox android:id="@+id/dayThu" android:text="Thursday" android:layout_width="match_parent" android:layout_height="wrap_content"/>
+            <CheckBox android:id="@+id/dayFri" android:text="Friday" android:layout_width="match_parent" android:layout_height="wrap_content"/>
+        </LinearLayout>
+
+        <Button
+            android:id="@+id/saveButton"
+            android:text="Save Alarm"
+            android:layout_marginTop="18dp"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"/>
+
+        <Button
+            android:id="@+id/cancelButton"
+            android:text="Cancel"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"/>
+    </LinearLayout>
+</ScrollView>
