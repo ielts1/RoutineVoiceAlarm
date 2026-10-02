@@ -15,7 +15,7 @@ import androidx.core.app.NotificationCompat;
 public class AlarmReceiver extends BroadcastReceiver {
 
     public static final String CHANNEL =
-            "routine_alarm_channel_v2";
+            "routine_alarm_channel_v3";
 
     @Override
     public void onReceive(
@@ -29,7 +29,8 @@ public class AlarmReceiver extends BroadcastReceiver {
                 );
 
         AlarmItem item =
-                new AlarmStorage(context).get(id);
+                new AlarmStorage(context)
+                        .get(id);
 
         if (item == null) {
             return;
@@ -70,25 +71,27 @@ public class AlarmReceiver extends BroadcastReceiver {
                             )
                             .build();
 
-            NotificationChannel ch =
+            NotificationChannel channel =
                     new NotificationChannel(
                             CHANNEL,
                             "Routine alarms",
                             NotificationManager.IMPORTANCE_HIGH
                     );
 
-            ch.setDescription(
+            channel.setDescription(
                     "Routine voice alarm notifications"
             );
 
-            ch.setSound(
+            channel.setSound(
                     soundUri,
                     audioAttributes
             );
 
-            ch.enableVibration(true);
+            channel.enableVibration(true);
 
-            nm.createNotificationChannel(ch);
+            nm.createNotificationChannel(
+                    channel
+            );
         }
 
         Intent alarm =
@@ -104,58 +107,79 @@ public class AlarmReceiver extends BroadcastReceiver {
 
         alarm.addFlags(
                 Intent.FLAG_ACTIVITY_NEW_TASK |
-                Intent.FLAG_ACTIVITY_CLEAR_TOP
+                Intent.FLAG_ACTIVITY_CLEAR_TOP |
+                Intent.FLAG_ACTIVITY_SINGLE_TOP
         );
 
         PendingIntent full =
                 PendingIntent.getActivity(
                         context,
-                        (int)(id % Integer.MAX_VALUE),
+                        (int)(
+                                id
+                                        % Integer.MAX_VALUE
+                        ),
                         alarm,
                         PendingIntent.FLAG_UPDATE_CURRENT |
                         PendingIntent.FLAG_IMMUTABLE
                 );
 
-        String message =
-                item.message == null ||
-                item.message.trim().isEmpty()
-                        ? item.name +
-                                " করার সময় হয়ে গেছে।"
-                        : item.message;
+        String message;
+
+        if (item.message == null ||
+                item.message.trim().isEmpty()) {
+
+            message =
+                    item.name +
+                    " করার সময় হয়ে গেছে।";
+
+        } else {
+
+            message =
+                    item.message.trim();
+        }
 
         NotificationCompat.Builder builder =
                 new NotificationCompat.Builder(
                         context,
                         CHANNEL
                 )
-                .setSmallIcon(
-                        R.drawable.ic_alarm
-                )
-                .setContentTitle(
-                        item.name
-                )
-                .setContentText(
-                        message
-                )
-                .setPriority(
-                        NotificationCompat.PRIORITY_MAX
-                )
-                .setCategory(
-                        NotificationCompat.CATEGORY_ALARM
-                )
-                .setAutoCancel(false)
-                .setOngoing(true)
-                .setContentIntent(full)
-                .setFullScreenIntent(
-                        full,
-                        true
-                );
+                        .setSmallIcon(
+                                R.drawable.ic_alarm
+                        )
+                        .setContentTitle(
+                                item.name
+                        )
+                        .setContentText(
+                                message
+                        )
+                        .setPriority(
+                                NotificationCompat.PRIORITY_MAX
+                        )
+                        .setCategory(
+                                NotificationCompat.CATEGORY_ALARM
+                        )
+                        .setVisibility(
+                                NotificationCompat.VISIBILITY_PUBLIC
+                        )
+                        .setAutoCancel(false)
+                        .setOngoing(true)
+                        .setContentIntent(full)
+                        .setFullScreenIntent(
+                                full,
+                                true
+                        );
 
         nm.notify(
-                (int)(id % Integer.MAX_VALUE),
+                (int)(
+                        id
+                                % Integer.MAX_VALUE
+                ),
                 builder.build()
         );
 
+        /*
+         * Schedule the next normal occurrence.
+         */
         if (!intent.getBooleanExtra(
                 "snooze",
                 false
@@ -167,4 +191,4 @@ public class AlarmReceiver extends BroadcastReceiver {
             );
         }
     }
-}
+            }
