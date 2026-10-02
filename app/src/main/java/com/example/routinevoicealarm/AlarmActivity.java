@@ -1,9 +1,10 @@
 package com.example.routinevoicealarm;
 
-import android.app.NotificationManager;
 import android.app.Activity;
+import android.app.NotificationManager;
 import android.content.Context;
 import android.media.AudioAttributes;
+import android.media.AudioManager;
 import android.media.Ringtone;
 import android.media.RingtoneManager;
 import android.os.Build;
@@ -30,6 +31,10 @@ public class AlarmActivity extends Activity {
 
     private boolean stopped = false;
 
+    private int speechCount = 0;
+
+    private static final int MAX_SPEECH_COUNT = 3;
+
     private static final long REPEAT_DELAY = 5000L;
 
     @Override
@@ -47,18 +52,28 @@ public class AlarmActivity extends Activity {
 
         setContentView(R.layout.activity_alarm);
 
-        long id = getIntent().getLongExtra("alarm_id", -1);
+        long id =
+                getIntent().getLongExtra(
+                        "alarm_id",
+                        -1
+                );
 
-        item = new AlarmStorage(this).get(id);
+        item =
+                new AlarmStorage(this).get(id);
 
         if (item == null) {
             finish();
             return;
         }
 
-        TextView time = findViewById(R.id.alarmTime);
-        TextView title = findViewById(R.id.alarmTitle);
-        TextView msg = findViewById(R.id.alarmMessage);
+        TextView time =
+                findViewById(R.id.alarmTime);
+
+        TextView title =
+                findViewById(R.id.alarmTitle);
+
+        TextView msg =
+                findViewById(R.id.alarmMessage);
 
         time.setText(
                 new SimpleDateFormat(
@@ -74,36 +89,48 @@ public class AlarmActivity extends Activity {
         if (item.message == null ||
                 item.message.trim().isEmpty()) {
 
-            spoken = item.name + " করার সময় হয়ে গেছে।";
+            spoken =
+                    item.name +
+                    " করার সময় হয়ে গেছে।";
 
         } else {
 
-            spoken = item.message.trim();
+            spoken =
+                    item.message.trim();
         }
 
         msg.setText(spoken);
 
         findViewById(R.id.stopButton)
-                .setOnClickListener(v -> stopAlarm());
+                .setOnClickListener(
+                        v -> stopAlarm()
+                );
 
         findViewById(R.id.snoozeButton)
-                .setOnClickListener(v -> snooze());
+                .setOnClickListener(
+                        v -> snooze()
+                );
 
         startRingtone();
+
         startSpeech(spoken);
     }
 
     private void startRingtone() {
+
         try {
+
             android.net.Uri uri =
                     RingtoneManager.getDefaultUri(
                             RingtoneManager.TYPE_ALARM
                     );
 
             if (uri == null) {
-                uri = RingtoneManager.getDefaultUri(
-                        RingtoneManager.TYPE_NOTIFICATION
-                );
+
+                uri =
+                        RingtoneManager.getDefaultUri(
+                                RingtoneManager.TYPE_NOTIFICATION
+                        );
             }
 
             ringtone =
@@ -114,16 +141,19 @@ public class AlarmActivity extends Activity {
 
             if (ringtone != null) {
 
-                ringtone.setAudioAttributes(
-                        new AudioAttributes.Builder()
-                                .setUsage(
-                                        AudioAttributes.USAGE_ALARM
-                                )
-                                .setContentType(
-                                        AudioAttributes.CONTENT_TYPE_SONIFICATION
-                                )
-                                .build()
-                );
+                if (Build.VERSION.SDK_INT >= 21) {
+
+                    ringtone.setAudioAttributes(
+                            new AudioAttributes.Builder()
+                                    .setUsage(
+                                            AudioAttributes.USAGE_ALARM
+                                    )
+                                    .setContentType(
+                                            AudioAttributes.CONTENT_TYPE_SONIFICATION
+                                    )
+                                    .build()
+                    );
+                }
 
                 ringtone.play();
             }
@@ -134,88 +164,142 @@ public class AlarmActivity extends Activity {
 
     private void startSpeech(String text) {
 
-        tts = new TextToSpeech(
-                this,
-                status -> {
+        speechCount = 0;
 
-                    if (status != TextToSpeech.SUCCESS) {
-                        return;
-                    }
+        tts =
+                new TextToSpeech(
+                        this,
+                        status -> {
 
-                    int result =
-                            tts.setLanguage(
-                                    new Locale("bn", "BD")
+                            if (status !=
+                                    TextToSpeech.SUCCESS) {
+                                return;
+                            }
+
+                            /*
+                             * Make TTS use ALARM audio.
+                             */
+                            if (Build.VERSION.SDK_INT >= 21) {
+
+                                tts.setAudioAttributes(
+                                        new AudioAttributes.Builder()
+                                                .setUsage(
+                                                        AudioAttributes.USAGE_ALARM
+                                                )
+                                                .setContentType(
+                                                        AudioAttributes.CONTENT_TYPE_SPEECH
+                                                )
+                                                .build()
+                                );
+                            }
+
+                            /*
+                             * Bengali voice.
+                             */
+                            Locale bengali =
+                                    new Locale(
+                                            "bn",
+                                            "BD"
+                                    );
+
+                            int result =
+                                    tts.setLanguage(
+                                            bengali
+                                    );
+
+                            if (result ==
+                                    TextToSpeech.LANG_MISSING_DATA
+                                    ||
+                                    result ==
+                                    TextToSpeech.LANG_NOT_SUPPORTED) {
+
+                                tts.setLanguage(
+                                        Locale.getDefault()
+                                );
+                            }
+
+                            /*
+                             * Normal speaking speed.
+                             * Not too slow.
+                             */
+                            tts.setSpeechRate(
+                                    0.90f
                             );
 
-                    if (result ==
-                            TextToSpeech.LANG_MISSING_DATA
-                            ||
-                            result ==
-                            TextToSpeech.LANG_NOT_SUPPORTED) {
+                            tts.setPitch(
+                                    1.0f
+                            );
 
-                        tts.setLanguage(
-                                Locale.getDefault()
-                        );
-                    }
+                            tts.setOnUtteranceProgressListener(
+                                    new UtteranceProgressListener() {
 
-                    /*
-                     * 1.0 = normal
-                     * 0.65 = slower
-                     */
-                    tts.setSpeechRate(0.65f);
+                                        @Override
+                                        public void onStart(
+                                                String id) {
+                                        }
 
-                    tts.setPitch(1.0f);
+                                        @Override
+                                        public void onDone(
+                                                String id) {
 
-                    tts.setOnUtteranceProgressListener(
-                            new UtteranceProgressListener() {
+                                            if (stopped) {
+                                                return;
+                                            }
 
-                                @Override
-                                public void onStart(
-                                        String id) {
-                                }
+                                            if (speechCount <
+                                                    MAX_SPEECH_COUNT) {
 
-                                @Override
-                                public void onDone(
-                                        String id) {
+                                                speechHandler
+                                                        .postDelayed(
+                                                                () -> {
 
-                                    if (!stopped) {
+                                                                    if (!stopped) {
+                                                                        speakText(
+                                                                                text
+                                                                        );
+                                                                    }
 
-                                        speechHandler.postDelayed(
-                                                () -> {
+                                                                },
+                                                                REPEAT_DELAY
+                                                        );
+                                            }
+                                        }
 
-                                                    if (!stopped) {
-                                                        speakText(text);
-                                                    }
-
-                                                },
-                                                REPEAT_DELAY
-                                        );
+                                        @Override
+                                        public void onError(
+                                                String id) {
+                                        }
                                     }
-                                }
+                            );
 
-                                @Override
-                                public void onError(
-                                        String id) {
-                                }
-                            }
-                    );
-
-                    speakText(text);
-                }
-        );
+                            speakText(text);
+                        }
+                );
     }
 
     private void speakText(String text) {
 
-        if (stopped || tts == null) {
+        if (stopped ||
+                tts == null) {
             return;
         }
 
+        if (speechCount >=
+                MAX_SPEECH_COUNT) {
+            return;
+        }
+
+        speechCount++;
+
+        /*
+         * Speak the user's message.
+         */
         tts.speak(
                 text,
                 TextToSpeech.QUEUE_FLUSH,
                 null,
-                "routine_voice_alarm"
+                "routine_voice_alarm_" +
+                        speechCount
         );
     }
 
@@ -238,9 +322,13 @@ public class AlarmActivity extends Activity {
 
         stopped = true;
 
-        speechHandler.removeCallbacksAndMessages(null);
+        speechHandler
+                .removeCallbacksAndMessages(
+                        null
+                );
 
         if (ringtone != null) {
+
             try {
                 ringtone.stop();
             } catch (Exception ignored) {
@@ -248,6 +336,7 @@ public class AlarmActivity extends Activity {
         }
 
         if (tts != null) {
+
             try {
                 tts.stop();
                 tts.shutdown();
@@ -261,7 +350,8 @@ public class AlarmActivity extends Activity {
                                 Context.NOTIFICATION_SERVICE
                         );
 
-        if (nm != null && item != null) {
+        if (nm != null &&
+                item != null) {
 
             nm.cancel(
                     (int)(
@@ -279,9 +369,13 @@ public class AlarmActivity extends Activity {
 
         stopped = true;
 
-        speechHandler.removeCallbacksAndMessages(null);
+        speechHandler
+                .removeCallbacksAndMessages(
+                        null
+                );
 
         if (ringtone != null) {
+
             try {
                 ringtone.stop();
             } catch (Exception ignored) {
@@ -289,6 +383,7 @@ public class AlarmActivity extends Activity {
         }
 
         if (tts != null) {
+
             try {
                 tts.stop();
                 tts.shutdown();
@@ -298,4 +393,4 @@ public class AlarmActivity extends Activity {
 
         super.onDestroy();
     }
-                }
+        }
